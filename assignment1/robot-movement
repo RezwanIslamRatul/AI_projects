@@ -1,1 +1,219 @@
 
+import numpy as np
+import matplotlib.pyplot as plt
+from collections import deque
+import heapq
+
+class PriorityQueue:
+    def __init__(self):
+        self.elements = []
+
+    def empty(self):
+        return len(self.elements) == 0
+
+    def put(self, item, priority):
+        heapq.heappush(self.elements, (priority, item))
+
+    def get(self):
+        return heapq.heappop(self.elements)[1]
+
+
+class Node:
+    def __init__(self, state, parent=None, action=None, path_cost=0):
+        self.state = state  
+        self.parent = parent 
+        self.action = action  
+        self.path_cost = path_cost  
+
+    # Comparison operator for priority queue.
+    def __lt__(self, other):
+        return self.path_cost < other.path_cost
+
+    def heuristic(a, b):
+    
+    (x1, y1) = a
+    (x2, y2) = b
+    return abs(x1 - x2) + abs(y1 - y2)
+
+class Environment:
+    def __init__(self, grid, start, goal):
+        self.grid = grid 
+        self.initial = start 
+        self.goal = goal  
+
+  
+    def actions(self, state):
+        possible_actions = ['UP', 'DOWN', 'LEFT', 'RIGHT']
+        x, y = state
+
+   
+        if x == 0 or self.grid[x - 1][y] == 1:
+            possible_actions.remove('UP')
+        if x == len(self.grid) - 1 or self.grid[x + 1][y] == 1:
+            possible_actions.remove('DOWN')
+        if y == 0 or self.grid[x][y - 1] == 1:
+            possible_actions.remove('LEFT')
+        if y == len(self.grid[0]) - 1 or self.grid[x][y + 1] == 1:
+            possible_actions.remove('RIGHT')
+
+        return possible_actions
+
+   
+    def result(self, state, action):
+        x, y = state
+        if action == 'UP':
+            return (x - 1, y)
+        if action == 'DOWN':
+            return (x + 1, y)
+        if action == 'LEFT':
+            return (x, y - 1)
+        if action == 'RIGHT':
+            return (x, y + 1)
+
+ 
+    def is_goal(self, state):
+        return state == self.goal
+
+class Agent:
+    def __init__(self, env,battery):
+        self.env = env
+        self.battery = 100 
+
+    def a_star_search_with_battery(self):
+        print("A* Search with Battery:")
+        start_node = Node(self.env.initial,)
+        frontier = PriorityQueue()
+        frontier.put(start_node, 0)
+        came_from = {}
+        cost_so_far = {}
+        came_from[start_node.state] = None
+        cost_so_far[start_node.state] = 0
+
+        while not frontier.empty():
+            current_node = frontier.get()
+
+            if self.env.is_goal(current_node.state):
+                path = self.reconstruct_path(came_from, current_node.state)
+                return path
+
+            for action in self.env.actions(current_node.state):
+                next_state = self.env.result(current_node.state, action)
+                new_cost = cost_so_far[current_node.state] + 1               
+                self.battery -= 10 
+                if self.battery <= 0:
+                    print("Battery depleted. Recharging...")
+                    self.battery = 100
+
+                if next_state not in cost_so_far or new_cost < cost_so_far[next_state]:
+                    cost_so_far[next_state] = new_cost
+                    priority = new_cost + heuristic(self.env.goal, next_state)
+                    next_node = Node(next_state, current_node, action, new_cost)
+                    frontier.put(next_node, priority)
+                    came_from[next_state] = current_node.state
+
+                    # Print the current state with battery level
+                    self.print_current_state_with_battery(next_state)
+
+        return None  # No path found
+
+    def ucs_search_with_battery(self):
+        print("UCS Search with Battery:")
+        start_node = Node(self.env.initial,path_cost=0)
+        frontier = PriorityQueue()
+        frontier.put(start_node, 0)
+        came_from = {self.env.initial: None}
+        cost_so_far = {self.env.initial: 0}
+        came_from[start_node.state] = None
+        cost_so_far[start_node.state] = 0
+
+        while not frontier.empty():
+            current_node = frontier.get()
+
+            if self.env.is_goal(current_node.state):
+                path = self.reconstruct_path(came_from, current_node.state)
+                return path
+
+            for action in self.env.actions(current_node.state):
+                next_state = self.env.result(current_node.state, action)
+                new_cost = cost_so_far[current_node.state] + 1  # Assuming each step costs 1
+
+                # Battery management
+                self.battery -= 10  
+                if self.battery == 0:
+                    print("Battery depleted. Recharging...")
+                    self.battery = 100
+
+                if next_state not in cost_so_far or new_cost < cost_so_far[next_state]:
+                    cost_so_far[next_state] = new_cost
+                    next_node = Node(next_state, current_node, action, new_cost)
+                    frontier.put(next_node, new_cost)
+                    came_from[next_state] = current_node.state
+
+                   
+                    self.print_current_state_with_battery(next_state)
+
+        return None 
+
+    def reconstruct_path(self, came_from, current):
+        path = []
+        while current in came_from:
+            path.append(current)
+            current = came_from[current]
+        path.append(self.env.initial)
+        path.reverse()
+        return path
+
+    def print_current_state_with_battery(self, state):
+        print(f"Current State: {state}. Battery Level: {self.battery}%")
+
+# Visualization Function plots the grid and the found path.
+def visualize_grid_and_path(grid, path):
+    grid_array = np.array(grid)  # Convert grid to numpy array for easy plotting.
+    fig, ax = plt.subplots()
+    ax.imshow(grid_array, cmap='Greys', alpha=0.3)  # Grid background.
+    start = path[0]
+    goal = path[-1]
+    ax.plot(start[1], start[0], 'bs', markersize=10)  # Start position in blue.
+    ax.plot(goal[1], goal[0], 'gs', markersize=10)  # Goal position in green.
+    xs, ys = zip(*path)  # Extract X and Y coordinates of the path.
+    ax.plot(ys, xs, 'r-', linewidth=2)  # Plot the path in red.
+    ax.set_xticks(np.arange(-.5, len(grid[0]), 1), minor=True)
+    ax.set_yticks(np.arange(-.5, len(grid), 1), minor=True)
+    ax.grid(which="minor", color="b", linestyle='-', linewidth=1)
+    ax.tick_params(which="minor", size=0)
+    ax.tick_params(which="major", bottom=False, left=False, labelbottom=False, labelleft=False)
+    plt.show()
+
+# Generate a Random Grid Function
+import numpy as np
+def generate_random_grid(size, obstacle_probability):
+    return np.random.choice([0, 1], size=(size, size), p=[1-obstacle_probability, obstacle_probability])
+
+# Define the size of the grid and the probability of an obstacle in each cell
+grid_size = 10
+obstacle_probability = 0.2  # 20% chance of being an obstacle
+
+# Generate a random grid
+grid = generate_random_grid(grid_size, obstacle_probability)
+
+# Define start and goal positions
+start = (0, 0)
+goal = (grid_size - 1, grid_size - 1)
+
+# Ensure start and goal are not obstacles
+grid[start] = 0
+grid[goal] = 0
+
+# Create the environment and agent
+environment = Environment(grid, start, goal)
+agent = Agent(environment,battery=100)
+
+a star search
+solution_path = agent.a_star_search_with_battery()
+print("Solution Path:", solution_path)
+visualize_grid_and_path(grid, solution_path)
+
+#checking the ucs search
+solution_path2=agent.ucs_search_with_battery()
+print("Solution Path:", solution_path2)
+visualize_grid_and_path(grid, solution_path2)
